@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 SyntaxMax
+Copyright (c) 2026 James Baggins and contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,68 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+-----------------------------------------------------------------------
+Additional Project Notices (Non-License Information)
+-----------------------------------------------------------------------
+
+Documentation License
+
+The educational documentation and written content contained in this
+repository—including README.md, PROFILES.md, ENGINE.md, and explanatory text
+embedded within the application—are additionally made available under the
+Creative Commons Attribution 4.0 International License (CC BY 4.0):
+
+https://creativecommons.org/licenses/by/4.0/
+
+Educational Purpose
+
+Cancer Metabolism Explorer is an educational visualization of cancer
+metabolism and tumor bioenergetics. It is intended to summarize and illustrate
+concepts from the published scientific literature to support learning and
+discussion. It is not a validated computational model of tumor metabolism and
+must not be used to estimate tumor biology, predict treatment response, or
+guide clinical decision-making.
+
+Medical Disclaimer
+
+This software is an educational resource. It does not recommend treatments and
+must not be used for decisions regarding cancer diagnosis, prevention, or
+therapy. Treatment decisions should always be made in consultation with
+qualified healthcare professionals using evidence-based clinical guidelines.
+
+Model Scope
+
+The pathway values displayed throughout the application are conceptual
+illustrations of relative metabolic tendencies. They are not percentages,
+measured biological quantities, patient-specific values, or validated
+predictions. Guided cancer profiles represent literature-informed educational
+syntheses of metabolic patterns commonly described for those tumor types and
+are not intended to represent any individual patient's tumor.
+
+Scientific Scope and Limitations
+
+The project synthesizes mechanisms reported across published cancer metabolism
+research. While efforts have been made to accurately represent the cited
+literature, scientific understanding continues to evolve, and the application
+is not exhaustive. Inclusion of a pathway, mechanism, publication, or
+experimental agent should not be interpreted as establishing scientific
+consensus, clinical efficacy, or endorsement by the cited authors.
+
+Evidence Interpretation
+
+The application discusses interventions supported by varying levels of
+evidence, ranging from approved medications with extensive human pharmacology
+to investigational therapies and preclinical research. Mechanistic plausibility
+does not establish clinical benefit. Many investigational or off-patent
+compounds have not undergone large randomized oncology trials, and clinical
+efficacy remains unestablished unless demonstrated through appropriate human
+studies.
+
+No Warranty of Scientific Accuracy
+
+Although substantial effort has been made to accurately summarize published
+research, no warranty is made regarding scientific completeness, future
+accuracy, or suitability for any particular purpose. Users are encouraged to
+consult the original cited literature and relevant evidence-based clinical
+guidelines when interpreting scientific concepts presented by this project.
