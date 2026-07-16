@@ -1,4 +1,5 @@
-# Cancer Metabolism Explorer
+# Cancer Metabolism Explorer <img width="1622" height="1394" alt="screenshot" src="https://github.com/user-attachments/assets/606f65d6-0737-480e-bcc7-59b797bcfeb5" />
+
 
 **An Educational Visualization of Tumor Bioenergetics**
 
