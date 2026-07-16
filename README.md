@@ -9,7 +9,7 @@ An interactive, single-file browser tool that illustrates **how active each of f
 
 > **Bar movement is not efficacy.** This tool models **ATP production only**. Cornering a tumor's fuel routes inside this model is *not* evidence that an intervention shrinks tumors or extends life. Please read [Known Limitations](#known-limitations) before drawing conclusions from anything you see here.
 
-**▶ [Open the live tool](#usage)** · **[How the profiles were derived](PROFILES.md)** · **[How the engine works](ENGINE.md)**
+**▶ [Open the live tool] [https://johnnyh-bot.github.io/cancer-metabolism-explorer/]** · **[How the profiles were derived](PROFILES.md)** · **[How the engine works](ENGINE.md)**
 
 ---
 
