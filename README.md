@@ -1,5 +1,4 @@
-# Cancer Metabolism Explorer <img width="1622" height="1394" alt="screenshot" src="https://github.com/user-attachments/assets/606f65d6-0737-480e-bcc7-59b797bcfeb5" />
-
+# Cancer Metabolism Explorer
 
 **An Educational Visualization of Tumor Bioenergetics**
 
@@ -9,7 +8,7 @@ An interactive, single-file browser tool that illustrates **how active each of f
 
 > **Bar movement is not efficacy.** This tool models **ATP production only**. Cornering a tumor's fuel routes inside this model is *not* evidence that an intervention shrinks tumors or extends life. Please read [Known Limitations](#known-limitations) before drawing conclusions from anything you see here.
 
-**▶ [Open the live tool] https://johnnyh-bot.github.io/cancer-metabolism-explorer/** · **[How the profiles were derived](PROFILES.md)** · **[How the engine works](ENGINE.md)**
+**▶ [Open the live tool](#usage)** · **[How the profiles were derived](PROFILES.md)** · **[How the engine works](ENGINE.md)**
 
 ---
 
@@ -76,7 +75,9 @@ This may not be a clean either/or. The metabolic phenotypes in this tool differ 
 
 ### On the agents, and on evidence
 
-The tool includes a number of repurposed and off-patent agents alongside conventional metabolic interventions. The position it takes on them is deliberately narrow:
+The tool includes a number of repurposed and off-patent agents alongside conventional metabolic interventions, and one standard-of-care chemotherapy (gemcitabine, shown only on the pancreatic profile where it is first-line). Gemcitabine is included partly to correct a bias: a tool containing only repurposed and dietary agents would implicitly frame metabolic intervention as the whole universe of options. It also happens to be the clearest demonstration of this tool's central limitation, since almost nothing that makes it a standard of care is visible on these four bars.
+
+The position the tool takes on agents is deliberately narrow:
 
 **Many off-patent compounds have not undergone large randomized oncology trials. This reflects multiple practical, financial, and scientific factors. As a result, clinical efficacy for these agents remains unestablished, regardless of promising mechanistic or preclinical findings.**
 

@@ -679,6 +679,20 @@ const CANCER_PROFILES = {
   }
 };
 const AGENTS = {
+  gemcitabine: {
+    label: "Gemcitabine (residual / resistant state)",
+    exposure: "reached",
+    exposureNote: "Gemcitabine is an approved, dosed chemotherapy, so the question this axis usually asks — whether a mechanism's concentrations are reachable — is not the open question here. The caveat is different: what IS reachable and well established is gemcitabine's cytotoxic, DNA-directed action, and that is the part these four bars cannot show. The modeled metabolic shift is a population-level consequence observed in residual and resistant disease, not a dose-response effect this engine can quantify.",
+    tier: "approved",
+    mechConfidence: 4,
+    effects: {
+      glycolysis: -25,
+      oxphos: 20,
+      glutamine: 8
+    },
+    redox: 8,
+    note: "WHAT THIS TOGGLE REPRESENTS: not a tumor partway through treatment, but the RESIDUAL population left after gemcitabine has selected against the cells most sensitive to it. That distinction matters for reading the bars, and it is why the shift shown here is substantial rather than a nudge. Gemcitabine is the standard first-line chemotherapy for PDAC and is included for that reason. Its primary mechanism is NOT metabolic: it is a nucleoside analog that inhibits DNA synthesis and kills rapidly dividing cells. Almost nothing that makes it a standard of care is visible on these four bars, which makes it the clearest illustration in this tool of how much sits off these axes. WHAT THE BARS SHOW is a downstream consequence, and it is POPULATION SELECTION rather than adaptation inside a cell: the proliferative, glycolysis-heavy fraction is preferentially killed, and the surviving population is enriched for slower-cycling, mitochondrially-reliant cells. High-OXPHOS PDAC is described as chemoresistant (Masoud et al. 2020, Cell Rep Med), and post-treatment residual disease shifting toward oxidative metabolism is reported across several tumor types. IN THE FERMENTATION MODEL, that same surviving population is read as mSLP-reliant rather than respiring, so its glutamine dependency rises alongside the mitochondrial bar — glutamine is what feeds the succinyl-CoA step. Note this is the fermentation reading applied by extension: the resistance literature itself is written in respiratory terms. TWO CAVEATS. First, acute exposure points the other way — in vitro, gemcitabine reduces oxygen consumption in the cells it is killing (Lee et al. 2022, Front Pharmacol). Chronic selection and acute cytotoxicity are different phenomena on different timescales, and this models the former. Second, gemcitabine's contribution to overall survival in PDAC is modest, so the residual state shown here is a phenotype description, not a claim about how much disease is removed to reach it."
+  },
   metformin: {
     label: "Metformin",
     exposure: "belowModeled",
@@ -940,6 +954,13 @@ function computeState(cancerKeyOrProfile, active, mode) {
   const fenActive = active.includes('fenbendazole') || active.includes('mebendazole');
   const iverActive = active.includes('ivermectin');
 
+  // COMPENSATION QUEUE. Compensatory boosts are collected here during the agent pass and applied
+  // AFTER it, scaled by how much of each target route actually survives. Applying them inline meant
+  // a tumor could "shift load onto glutamine" while glutamine was pharmacologically inhibited to the
+  // floor — so adding ketosis to an already-cornered tumor RAISED its glutamine and mitochondrial
+  // bars, making a fuel restriction look protective. A blocked route cannot absorb load.
+  const pendingComp = [];
+
   // In the fermentation model, "OXPHOS" is largely glutamine-driven mSLP (fermentation),
   // not true respiration — so the mitochondrial compartment can't stage a genuine
   // oxidative recovery when glucose is cut. Compensation that would flow to oxphos is
@@ -978,6 +999,8 @@ function computeState(cancerKeyOrProfile, active, mode) {
       // Channel-biased compensation: the tumor's preferred fallback gets a strong boost,
       // the other viable channels get a smaller "minor" boost — a stressed tumor lights up
       // multiple fallbacks, but not equally.
+      //
+      // QUEUED, not applied — see pendingComp above and the capacity-scaling pass after the loop.
       const strong = Math.round(26 * profile.plasticity);
       const minor = Math.round(12 * profile.plasticity);
       const ch = profile.compensationChannel;
@@ -987,97 +1010,86 @@ function computeState(cancerKeyOrProfile, active, mode) {
           // fermentation (mSLP), NOT respiration. Send the strong boost to glutamine; the
           // mitochondrial pathway gets only a small residual (it IS glutamine fermentation, tracked
           // mostly by the glutamine pathway), and fat oxidation stays a minor fallback.
-          q += strong;
-          mods.glutamine.push({
-            label: "Ketosis → glutaminolysis (preferred compensatory route)",
-            delta: strong,
+          pendingComp.push({
+            route: 'q',
+            amount: strong,
+            label: "Ketosis \u2192 glutaminolysis (preferred compensatory route)",
             note: "fermentation model: glucose restriction alone leaves glutamine fermentation as the surviving fuel — the tumor stays 'alive and growing slowly' (Seyfried)"
           });
-          const residual = Math.round(minor * 0.5);
-          o += residual;
-          mods.oxphos.push({
-            label: "Ketosis → mSLP (minor, glutamine-fed)",
-            delta: residual,
+          pendingComp.push({
+            route: 'o',
+            amount: Math.round(minor * 0.5),
+            label: "Ketosis \u2192 mSLP (minor, glutamine-fed)",
             note: "damaged mitochondria can't stage real oxidative recovery; this pathway is residual glutamine fermentation, not respiration"
           });
-          f += Math.round(minor * 0.4);
-          mods.fatox.push({
+          pendingComp.push({
+            route: 'f',
+            amount: Math.round(minor * 0.4),
             label: "Fat oxidation (minor compensatory)",
-            delta: Math.round(minor * 0.4),
             note: "limited fallback"
           });
         } else {
-          o += strong;
-          mods.oxphos.push({
-            label: "Ketosis → OXPHOS (preferred compensatory route)",
-            delta: strong,
+          pendingComp.push({
+            route: 'o',
+            amount: strong,
+            label: "Ketosis \u2192 OXPHOS (preferred compensatory route)",
             note: "shift to oxidative metabolism, plasticity-scaled"
           });
-          q += minor;
-          mods.glutamine.push({
+          pendingComp.push({
+            route: 'q',
+            amount: minor,
             label: "Glutaminolysis (minor compensatory)",
-            delta: minor,
             note: "secondary fallback under glucose restriction"
           });
-          f += Math.round(minor * 0.5);
-          mods.fatox.push({
+          pendingComp.push({
+            route: 'f',
+            amount: Math.round(minor * 0.5),
             label: "Fat oxidation (minor compensatory)",
-            delta: Math.round(minor * 0.5),
             note: "limited fallback"
           });
         }
       } else if (ch === 'glutamine') {
-        q += strong;
-        mods.glutamine.push({
-          label: "Ketosis → glutaminolysis (preferred compensatory route)",
-          delta: strong,
+        pendingComp.push({
+          route: 'q',
+          amount: strong,
+          label: "Ketosis \u2192 glutaminolysis (preferred compensatory route)",
           note: "glucose-independent glutamine reliance"
         });
-        if (!fermentation) {
-          o += minor;
-          mods.oxphos.push({
-            label: "OXPHOS (minor compensatory)",
-            delta: minor,
-            note: "secondary fallback"
-          });
-        } else {
-          const residual = Math.round(minor * 0.5);
-          o += residual;
-          mods.oxphos.push({
-            label: "mSLP (minor, glutamine-fed)",
-            delta: residual,
-            note: "residual glutamine fermentation, not respiration"
-          });
-        }
-        f += Math.round(minor * 0.4);
-        mods.fatox.push({
+        pendingComp.push({
+          route: 'o',
+          amount: fermentation ? Math.round(minor * 0.5) : minor,
+          label: fermentation ? "mSLP (minor, glutamine-fed)" : "OXPHOS (minor compensatory)",
+          note: fermentation ? "residual glutamine fermentation, not respiration" : "secondary fallback"
+        });
+        pendingComp.push({
+          route: 'f',
+          amount: Math.round(minor * 0.4),
           label: "Fat oxidation (minor compensatory)",
-          delta: Math.round(minor * 0.4),
           note: "limited fallback"
         });
       } else if (ch === 'fatox') {
-        f += strong;
-        mods.fatox.push({
-          label: "Ketosis → fat oxidation (preferred compensatory route)",
-          delta: strong,
+        pendingComp.push({
+          route: 'f',
+          amount: strong,
+          label: "Ketosis \u2192 fat oxidation (preferred compensatory route)",
           note: "reinforces already-dominant fat oxidation"
         });
-        q += minor;
-        mods.glutamine.push({
+        pendingComp.push({
+          route: 'q',
+          amount: minor,
           label: "Glutaminolysis (minor compensatory)",
-          delta: minor,
           note: "secondary fallback"
         });
         if (!fermentation) {
-          o += Math.round(minor * 0.6);
-          mods.oxphos.push({
+          pendingComp.push({
+            route: 'o',
+            amount: Math.round(minor * 0.6),
             label: "OXPHOS (minor compensatory)",
-            delta: Math.round(minor * 0.6),
             note: "secondary fallback"
           });
         }
       }
-      return;
+            return;
     }
     if (key === 'berberine' && active.includes('metformin')) {
       const overlap = 0.35;
@@ -1210,14 +1222,63 @@ function computeState(cancerKeyOrProfile, active, mode) {
       });
     }
   });
-  if (!ketoActive && !fenActive && o < 30 && g > 20) {
-    const bump = Math.round(8 * profile.plasticity);
-    g += bump;
-    mods.glycolysis.push({
-      label: "Compensation",
-      delta: bump,
-      note: "loss of oxidative ATP upregulates glycolytic flux"
+
+  // ===== CAPACITY-SCALED COMPENSATION =====
+  // A route can only absorb compensatory load to the extent it is still functional. Capacity is the
+  // route's post-agent value as a fraction of its baseline: at full capacity nothing changes (ketosis
+  // on an untreated tumor behaves exactly as before), at 10% capacity the tumor recovers only 10% of
+  // the modeled boost. This is what stops a fuel restriction from appearing to RESCUE a tumor whose
+  // fallback routes have already been inhibited.
+  // Capacities are computed ONCE, before any boost is applied, so the queued boosts don't inflate
+  // each other's headroom.
+  // Capacity must reflect glutamine that is actually AVAILABLE AS FUEL, not gross supply. A large
+  // part of a pressed tumor's glutamine is spent rebuilding glutathione under oxidative stress, and
+  // glutamine burned as an antioxidant cannot also absorb compensatory ATP load. Projecting that
+  // diversion here (it is applied for real further down) is what makes ROS-heavy agent stacks
+  // register as genuinely cornered rather than merely inconvenienced.
+  const projectedDiversion = clamp(redox, 0, 95) * 0.4 * profile.redoxSensitivity;
+  // Glutamine is measured against its baseline NET availability (baseline supply minus the diversion
+  // that a resting tumor already pays at redox 20), not gross supply. Otherwise every tumor would
+  // start below full capacity purely from resting oxidative maintenance, and ketosis on an untreated
+  // tumor would compensate slightly less than the profile's plasticity says it should.
+  const restingDiversion = 20 * 0.4 * profile.redoxSensitivity;
+  const capacityOf = key => {
+    const base = key === 'g' ? activeBaseline.glycolysis : key === 'o' ? activeBaseline.oxphos : key === 'q' ? activeBaseline.glutamine - restingDiversion : activeBaseline.fatox;
+    const cur = key === 'g' ? g : key === 'o' ? o : key === 'q' ? q - projectedDiversion : f;
+    if (!(base > 0)) return 0;
+    return clamp(cur / base, 0, 1);
+  };
+  const caps = {
+    g: capacityOf('g'),
+    o: capacityOf('o'),
+    q: capacityOf('q'),
+    f: capacityOf('f')
+  };
+  // In the fermentation model the mitochondrial bar IS glutamine fermentation, so it cannot absorb
+  // compensatory load that glutamine itself cannot supply. Mirrors the mSLP↔glutamine coupling applied
+  // later; without it, mSLP could "compensate" on a glutamine supply that has already been spent.
+  if (fermentation) caps.o = Math.min(caps.o, caps.q);
+  const modsFor = {
+    g: mods.glycolysis,
+    o: mods.oxphos,
+    q: mods.glutamine,
+    f: mods.fatox
+  };
+  const applyComp = (route, amount, label, note) => {
+    const cap = caps[route];
+    const scaled = Math.round(amount * cap);
+    if (route === 'g') g += scaled;else if (route === 'o') o += scaled;else if (route === 'q') q += scaled;else f += scaled;
+    const pct = Math.round(cap * 100);
+    modsFor[route].push({
+      label: label,
+      delta: scaled,
+      note: cap < 0.95 ? note + " \u2014 REDUCED to " + pct + "% of the modeled boost: this route is itself suppressed to about " + pct + "% of its baseline, and a route that is being blocked cannot absorb much compensatory load. Without this scaling the tool would show a fuel restriction appearing to revive a cornered tumor." : note
     });
+  };
+  pendingComp.forEach(c => applyComp(c.route, c.amount, c.label, c.note));
+
+  if (!ketoActive && !fenActive && o < 30 && g > 20) {
+    applyComp('g', Math.round(8 * profile.plasticity), "Compensation", "loss of oxidative ATP upregulates glycolytic flux");
   }
   // Anaplerotic-pull compensation: when oxidative ATP disappears, the tumor leans harder on
   // glutamine. This only makes sense in the RESPIRATORY model, where OXPHOS and glutaminolysis are
@@ -1228,13 +1289,7 @@ function computeState(cancerKeyOrProfile, active, mode) {
   if (!fermentation && o < 25 && !iverActive) {
     const glucoseAlsoRestricted = ketoActive || fenActive;
     const multiplier = glucoseAlsoRestricted ? 1.5 : 1.0;
-    const bump = Math.round(10 * profile.plasticity * multiplier);
-    q += bump;
-    mods.glutamine.push({
-      label: "Compensation",
-      delta: bump,
-      note: glucoseAlsoRestricted ? "anaplerotic pull intensifies — glucose is restricted too, so glutamine is the only route left" : "anaplerotic pull as oxidative ATP disappears"
-    });
+    applyComp('q', Math.round(10 * profile.plasticity * multiplier), "Compensation", glucoseAlsoRestricted ? "anaplerotic pull intensifies — glucose is restricted too, so glutamine is the only route left" : "anaplerotic pull as oxidative ATP disappears");
   }
   // Reciprocal compensation (the other half of Seyfried's fuel-switching): if GLUTAMINE is targeted
   // while glucose is left available, the tumor upregulates glucose fermentation to compensate.
@@ -1244,13 +1299,7 @@ function computeState(cancerKeyOrProfile, active, mode) {
   // escape to upregulate, which is the whole point of pressing both fuels together.
   const glnSuppressed = q < activeBaseline.glutamine * 0.6;
   if (glnSuppressed && !ketoActive && !fenActive && g > 20) {
-    const bump = Math.round(10 * profile.plasticity);
-    g += bump;
-    mods.glycolysis.push({
-      label: "Compensation",
-      delta: bump,
-      note: "glutamine targeted alone — the tumor upregulates glucose fermentation to compensate (Seyfried: hit one fuel and the other rises). Restricting glucose at the same time removes this escape."
-    });
+    applyComp('g', Math.round(10 * profile.plasticity), "Compensation", "glutamine targeted alone — the tumor upregulates glucose fermentation to compensate (Seyfried: hit one fuel and the other rises). Restricting glucose at the same time removes this escape.");
   }
   redox = clamp(redox, 0, 95);
 
@@ -1382,6 +1431,7 @@ const T = {
   textDimmer: "#6b7580",
   cyan: "#5fc3d6",
   violet: "#a98fe0",
+  steel: "#6d9bd1",
   brass: "#d9a24e",
   red: "#d97b6c",
   green: "#7ec98a",
@@ -1418,7 +1468,7 @@ const EVIDENCE_BASIS = {
   prostate: ["Human imaging / FDG-PET", "Human metabolomics", "Cell culture"],
   chl: ["Cell line + primary tumor metabolics", "Seahorse/OXPHOS flux", "Reverse-Warburg TME studies", "Immunohistochemistry"]
 };
-const DISCLAIMER_PARAGRAPHS = ["This project is an educational resource designed to explain concepts in cancer biology, tumor metabolism, mitochondrial function, and metabolic research. It is not medical advice, does not recommend treatments, and should not be used to make decisions regarding cancer diagnosis, prevention, or therapy.", "Cancer metabolism is a rapidly evolving research field. Many mechanisms described here are based on preclinical studies, cell culture experiments, animal models, and early-stage clinical research. Findings from laboratory studies do not necessarily translate into effective or safe human treatments.", "Treatment decisions should always be made in consultation with qualified healthcare professionals using evidence-based clinical guidelines.", "This tool simplifies complex biological systems for educational visualization and does not represent a complete model of human cancer biology.", "The pathway values shown are conceptual illustrations of relative tendencies, not measured quantities or validated predictions."];
+const DISCLAIMER_PARAGRAPHS = ["This project is an educational resource designed to explain concepts in cancer biology, tumor metabolism, mitochondrial function, and metabolic research. It is not medical advice, does not recommend treatments, and should not be used to make decisions regarding cancer diagnosis, prevention, or therapy.", "Cancer metabolism is a rapidly evolving research field. Many mechanisms described here are based on preclinical studies, cell culture experiments, animal models, and early-stage clinical research. Findings from laboratory studies do not necessarily translate into effective or safe human treatments.", "This tool models metabolic pressure only. It does not evaluate whether any agent, or any combination of agents, is safe, effective, or advisable. It does not account for drug interactions, toxicity, side effects, or effects on the efficacy of any treatment. Agents can be freely toggled together here because that is how the model explores fuel routes, not because any combination shown is known to be safe or beneficial.", "Treatment decisions should always be made in consultation with qualified healthcare professionals using evidence-based clinical guidelines.", "This tool simplifies complex biological systems for educational visualization and does not represent a complete model of human cancer biology.", "The pathway values shown are conceptual illustrations of relative tendencies, not measured quantities or validated predictions."];
 const KNOWN_LIMITATIONS = ["This tool models ATP production only. Metabolism does a great deal that is not ATP accounting — it regulates gene expression, growth signaling, and immune visibility — and none of that appears on these four bars. A small movement here does not mean little is happening; it may mean that what is happening is not on the axes this tool measures.", "Tumors are not metabolically uniform.", "Metabolism differs between primary tumors and metastases.", "Cell culture models often do not replicate human tumors.", "Blocking one pathway frequently causes compensatory pathway activation.", "Metabolic phenotypes change during treatment.", "No single metabolic classification applies universally."];
 const KEY_REFERENCES = [{
   tag: "Warburg 1956",
@@ -2717,6 +2767,15 @@ function MetabolicMonitor() {
   // If the description is collapsed and the text underneath it changes (different cancer, different
   // archetype, or the same profile re-read through the other mitochondrial model), mark the toggle so
   // the user knows there is something new there. Cleared the moment they open it.
+  // Clear the PDAC-only agent when the user navigates away, so the toggle state never disagrees with
+  // what the engine is actually applying.
+  useEffect(() => {
+    if (agents.gemcitabine && !(learningMode === "guided" && cancer === "pdac")) {
+      setAgents(a => ({ ...a, gemcitabine: false }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancer, learningMode]);
+
   useEffect(() => {
     if (!descOpen) setDescStale(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2767,8 +2826,13 @@ function MetabolicMonitor() {
     AGENT_ORDER.forEach(k => {
       if (agents[k]) a.push(k);
     });
+    // Gemcitabine is the one profile-scoped agent in the tool: it is PDAC's standard of care, and the
+    // metabolic shift modeled for it comes from PDAC chemoresistance literature. Gate it on the profile
+    // so it can never silently apply to a cancer it was not derived for (belt-and-braces alongside the
+    // auto-clear effect below, which closes the one-frame gap when switching profiles).
+    if (agents.gemcitabine && learningMode === "guided" && cancer === "pdac") a.push("gemcitabine");
     return a;
-  }, [ketosis, agents]);
+  }, [ketosis, agents, learningMode, cancer]);
 
   // Resolve the ACTIVE profile based on learning mode.
   // - Guided: the named cancer profile (full literature profile with blurbs, notes, evidence).
@@ -3810,7 +3874,53 @@ function MetabolicMonitor() {
       ...a,
       [k]: !a[k]
     }))
-  }))), /*#__PURE__*/React.createElement("div", {
+  })), learningMode === "guided" && cancer === "pdac" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 16,
+      paddingTop: 13,
+      borderTop: `1px solid ${T.steel}44`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 7,
+      font: `500 9px ${T.mono}`,
+      letterSpacing: "0.14em",
+      color: T.steel,
+      textTransform: "uppercase",
+      marginBottom: 9
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 5,
+      height: 5,
+      borderRadius: "50%",
+      background: T.steel,
+      flexShrink: 0
+    }
+  }), "Standard of care · PDAC only"), /*#__PURE__*/React.createElement(Row, {
+    key: "gemcitabine",
+    name: "Gemcitabine (residual state)",
+    tier: AGENTS.gemcitabine.tier,
+    mech: agentMech("gemcitabine"),
+    on: !!agents.gemcitabine,
+    accent: T.steel,
+    confidence: AGENTS.gemcitabine.mechConfidence,
+    note: AGENTS.gemcitabine.note,
+    onMechanism: () => openMechanism("gemcitabine"),
+    onToggle: () => setAgents(a => ({
+      ...a,
+      gemcitabine: !a.gemcitabine
+    }))
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      font: `400 10px ${T.body}`,
+      color: T.textDimmer,
+      lineHeight: 1.5,
+      marginTop: 8
+    }
+  }, "Shown for PDAC because it is the first-line standard of care here. Its main action is cytotoxic, not metabolic, so most of what it does sits off these four bars. This models the residual population left after treatment selection, not a tumor mid-course."))), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "20px 24px",
       display: "flex",
@@ -5305,6 +5415,7 @@ function Row({
 }
 function agentMech(k) {
   const m = {
+    gemcitabine: "Standard PDAC chemo — models the surviving resistant population, not acute treatment",
     metformin: "Complex I inhibition — glycolysis falls only with glucose restriction",
     berberine: "Complex I + AMPK (phytosome form) — see details",
     ivermectin: "ETC disruption + ROS — reported in several animal cancer models at tolerated doses",
